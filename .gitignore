@@ -1,0 +1,10 @@
+node_modules/
+ffmpeg/
+dist/
+test/
+native/
+**.7z
+**.mp4
+index.raw-cli.js
+任务说明.md
+tasks.md
