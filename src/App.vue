@@ -3,10 +3,15 @@ import { ref, reactive, onMounted } from 'vue'
 import { Box, Text, ProgressBar, Newline, useApp } from '@wolf-tui/vue'
 import { runProcessing, buildProgressLine, getConfig } from './core.js'
 
+const props = defineProps({
+	scanOptions: { type: Object, required: true },
+	processOptions: { type: Object, required: true }
+})
+
 const { exit } = useApp()
 
 // 配置信息
-const config = getConfig()
+const config = getConfig(props.scanOptions, props.processOptions)
 
 // 静态 log（已完成的任务结果）
 const logs = ref([])
@@ -21,44 +26,48 @@ const error = ref(null)
 
 // 启动处理
 onMounted(() => {
-	runProcessing({
-		onLog: (line) => {
-			logs.value.push(line)
-		},
-		onProgressAdd: (task) => {
-			progresses.push({
-				num: task.num,
-				relPath: task.relPath,
-				encoder: '',
-				pct: 0,
-				timeLeft: '',
-				time: '',
-				frame: 0,
-				bitrate: '',
-				fps: '',
-				speed: '',
-				size: task.size
-			})
-		},
-		onProgress: (task, data) => {
-			const info = buildProgressLine(task, data)
-			const p = progresses.find((x) => x.num === task.num)
-			if (p) {
-				p.encoder = info.encoder
-				p.pct = info.pct
-				p.timeLeft = info.timeLeft
-				p.time = info.time
-				p.frame = info.frame
-				p.bitrate = info.bitrate
-				p.fps = info.fps
-				p.speed = info.speed
+	runProcessing(
+		{
+			onLog: (line) => {
+				logs.value.push(line)
+			},
+			onProgressAdd: (task) => {
+				progresses.push({
+					num: task.num,
+					relPath: task.relPath,
+					encoder: '',
+					pct: 0,
+					timeLeft: '',
+					time: '',
+					frame: 0,
+					bitrate: '',
+					fps: '',
+					speed: '',
+					size: task.size
+				})
+			},
+			onProgress: (task, data) => {
+				const info = buildProgressLine(task, data)
+				const p = progresses.find((x) => x.num === task.num)
+				if (p) {
+					p.encoder = info.encoder
+					p.pct = info.pct
+					p.timeLeft = info.timeLeft
+					p.time = info.time
+					p.frame = info.frame
+					p.bitrate = info.bitrate
+					p.fps = info.fps
+					p.speed = info.speed
+				}
+			},
+			onProgressRemove: (task) => {
+				const idx = progresses.findIndex((x) => x.num === task.num)
+				if (idx !== -1) progresses.splice(idx, 1)
 			}
 		},
-		onProgressRemove: (task) => {
-			const idx = progresses.findIndex((x) => x.num === task.num)
-			if (idx !== -1) progresses.splice(idx, 1)
-		}
-	})
+		props.scanOptions,
+		props.processOptions
+	)
 		.then(() => {
 			status.value = '完成'
 			// 稍等片刻让最终状态渲染，然后退出
@@ -84,7 +93,7 @@ function finishAndExit() {
 	<Box :style="{ flexDirection: 'column', padding: 1 }">
 		<!-- 标题 -->
 		<Text :style="{ color: 'green', fontWeight: 'bold' }">=== 相机媒体提取工具 ===</Text>
-		<Text>相机媒体目录: {{ config.cameraMediaDir }}</Text>
+		<Text>相机媒体目录: {{ config.sourceDir }}</Text>
 		<Text>目标目录: {{ config.targetDir }}</Text>
 		<Text>目标视频编码: {{ config.targetVideoCodec }}</Text>
 		<Text>视频并发转码数: {{ config.videoTranscodeConcurrency }}</Text>

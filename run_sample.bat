@@ -14,6 +14,9 @@ set CAMERA_MEDIA_DIR=F:\DCIM
 rem 目标目录（必填，无默认值）
 set TARGET_DIR=G:\照片
 
+rem 已处理目录（默认 "已处理"，非绝对路径则相对源目录）
+rem set PROCESSED_DIR=已处理
+
 rem 目标视频编码：h265 或 h264（默认 h265）
 set TARGET_VIDEO_CODEC=h265
 
