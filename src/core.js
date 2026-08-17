@@ -63,6 +63,13 @@ async function moveToProcessed(src, relPath, processedDir) {
 	await fsp.rename(src, dest);
 }
 
+// 移动错误源文件到错误目录（保持相对结构）
+async function moveToErrorDir(src, relPath, errorDir) {
+	const dest = path.join(errorDir, relPath);
+	await fsp.mkdir(path.dirname(dest), { recursive: true });
+	await fsp.rename(src, dest);
+}
+
 // 递归删除空目录（不删除根目录）
 async function removeEmptyDirs(dir, root) {
 	let entries;
@@ -278,6 +285,10 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		task.method = '忽略';
 		task.reasons.push('无法解析');
 		handlers.onLog(formatTaskLine(task));
+		// 若提供了 errorSourceDir，把错误源文件移动到该目录
+		if (scanOptions.errorSourceDir) {
+			await moveToErrorDir(filePath, relPath, scanOptions.errorSourceDir);
+		}
 		return;
 	}
 
@@ -373,14 +384,18 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				task.reasons = ['转码结果无效'];
 				handlers.onProgressRemove(task);
 				handlers.onLog(formatTaskLine(task));
+				// 若提供了 errorSourceDir，把错误源文件移动到该目录
+				if (scanOptions.errorSourceDir) {
+					await moveToErrorDir(filePath, relPath, scanOptions.errorSourceDir);
+				}
 				return;
 			}
 
 			// 检查转码后文件是否比源文件小
 			const srcSize = (await fsp.stat(filePath)).size;
 			const outSize = (await fsp.stat(tmpDest)).size;
-			if (outSize >= srcSize) {
-				// 比源文件大，删除生成文件，改为复制
+			if (outSize >= srcSize && processOptions.copyIfBigger !== false) {
+				// 转码后更大且 copyIfBigger 为 true（默认）：删除生成文件，改为复制源文件
 				await fsp.unlink(tmpDest).catch(() => { });
 				task.method = '复制';
 				task.reasons = ['转码后更大'];
@@ -392,6 +407,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				handlers.onLog(formatTaskLine(task));
 				return;
 			}
+			// copyIfBigger 为 false 时，即使转码后更大也保留转码结果（继续走下方重命名逻辑）
 
 			// 转码成功且更小，重命名为目标文件并设置时间戳
 			await fsp.rename(tmpDest, dest);
@@ -537,6 +553,11 @@ export async function runProcessing(handlers, scanOptions, processOptions) {
 
 	// 确保已处理目录存在
 	await fsp.mkdir(processedDir, { recursive: true });
+
+	// 错误源文件目录：非绝对路径则相对 sourceDir 获取（目录由 moveToErrorDir 内部创建）
+	if (scanOptions.errorSourceDir && !path.isAbsolute(scanOptions.errorSourceDir)) {
+		scanOptions.errorSourceDir = path.join(scanOptions.sourceDir, scanOptions.errorSourceDir);
+	}
 
 	const concurrency = processOptions.concurrency != null ? processOptions.concurrency : 1;
 	const taskQueue = new TaskQueue(concurrency);
