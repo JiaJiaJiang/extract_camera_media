@@ -432,7 +432,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 					if (srcSize < existingSize) {
 						await fsp.unlink(tmpDest).catch(() => { });
 						task.method = '复制';
-						task.reasons = [`源文件更小(${humanSize(srcSize)} -> ${humanSize(existingSize)})`];
+						task.reasons = [`源文件更小(源:${humanSize(srcSize)} -> 存在目标:${humanSize(existingSize)})`];
 						handlers.onProgressRemove(task);
 						handlers.onLog(formatTaskLine(task));
 						await copyFile(filePath, finalDest);
@@ -444,7 +444,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 					// 否则删除转码结果，忽略任务
 					await fsp.unlink(tmpDest).catch(() => { });
 					task.method = '忽略';
-					task.reasons = [`转码后更大(${humanSize(existingSize)} -> ${humanSize(outSize)})`];
+					task.reasons = [`转码后更大(存在目标:${humanSize(existingSize)} -> 转码:${humanSize(outSize)})`];
 					handlers.onProgressRemove(task);
 					handlers.onLog(formatTaskLine(task));
 					return;
@@ -453,7 +453,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				// 转码结果和源文件都比已存在的目标文件小 → 用更小的那个替换，理由更明确
 				if (srcSize <= existingSize) {
 					const smallerSize = Math.min(outSize, srcSize);
-					const reason = `存在更小的目标文件(${humanSize(smallerSize)} -> ${humanSize(existingSize)})`;
+					const reason = `存在更小的目标文件(min(转码:${humanSize(outSize)},源:${humanSize(srcSize)}) -> 存在目标:${humanSize(existingSize)})`;
 					if (outSize <= srcSize) {
 						// 转码结果更小或相等，用转码结果替换
 						await fsp.rename(tmpDest, finalDest);
@@ -496,7 +496,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				await fsp.unlink(tmpDest).catch(() => { });
 				task.method = '复制';
 				// 把原大小和转码后大小追加在理由后面
-				task.reasons = [`转码后更大(${humanSize(srcSize)} -> ${humanSize(outSize)})`];
+				task.reasons = [`转码后更大(源:${humanSize(srcSize)} -> 转码:${humanSize(outSize)})`];
 				handlers.onProgressRemove(task);
 				handlers.onLog(formatTaskLine(task));
 				await copyFile(filePath, finalDest);
@@ -547,16 +547,16 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 export function formatTaskLine(task) {
 	const num = task.num;
 	const method = task.method; // 复制|转码|忽略
-	const size = task.size !== undefined ? humanSize(task.size) : '';
+	const size = task.size !== undefined ? `源:${humanSize(task.size)}` : '';
 	// 原因跟在方法后面，用冒号隔开（多个原因用逗号连接）
 	let line = `[${num}] ${method}`;
 	if (task.reasons && task.reasons.length > 0) {
 		line += `:${task.reasons.join(',')}`;
 	}
 	line += ` ${task.relPath}`;
-	// 转码完成时显示"原大小 -> 转码后大小"，其它情况显示原大小
+	// 转码完成时显示"源大小 -> 转码后大小"，其它情况显示源大小
 	if (task.outSize !== undefined) {
-		line += ` (${size} -> ${humanSize(task.outSize)})`;
+		line += ` (${size} -> 转码:${humanSize(task.outSize)})`;
 	} else if (size) {
 		line += ` (${size})`;
 	}

@@ -90,7 +90,8 @@ const processOptions = {
 		sceneChangeThreshold: '96%', // 场景变化阈值
 		profile: 'main', // 编码 profile
 		fpsMode: 'passthrough', // 帧率模式
-		container: 'mp4' // 文件容器格式
+		container: 'mp4', // 文件容器格式
+		disableUpscale: true // 源分辨率小于指定绝对分辨率时是否放大（默认 true 不放大）
 	},
 	transcodeAudio: {
 		targetCodec: 'aac', // 如果视频中的音频不符合此编码则转码对应音轨
