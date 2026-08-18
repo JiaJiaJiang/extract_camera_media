@@ -469,11 +469,14 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 						handlers.onLog(formatTaskLine(task));
 						return;
 					}
-					// 否则删除转码结果，忽略任务
+					// 否则删除转码结果，忽略任务（已处理过，源文件移到已处理目录）
 					await fsp.unlink(tmpDest).catch(() => { });
 					task.method = '忽略';
 					task.reasons = [`转码后更大(存在目标:${humanSize(existingSize)} -> 转码:${humanSize(outSize)})`];
 					handlers.onProgressRemove(task);
+					handlers.onLog(formatTaskLine(task));
+					await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+					task.status = 'done';
 					handlers.onLog(formatTaskLine(task));
 					return;
 				}
