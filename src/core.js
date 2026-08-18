@@ -376,20 +376,26 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		const useHardware = tv.hardwareEncoder !== false && !videoEncoder.startsWith('libx');
 		// 容器格式：未指定时使用源文件的扩展名
 		const container = tv.container || path.extname(filePath).replace('.', '') || 'mp4';
+		// 最终目标文件路径：转码输出使用容器扩展名（与源扩展名不同时替换，如源 .AVI + 容器 mp4 → 目标 .mp4）
+		const srcExt = path.extname(dest);
+		const finalDest = (srcExt && srcExt.slice(1).toLowerCase() !== container.toLowerCase())
+			? dest.slice(0, -srcExt.length) + '.' + container
+			: dest;
+		task.destPath = finalDest;
 		// 检测目标文件是否已存在，存在则记录其大小（用于转码后比较决定是否替换）
 		let existingSize = null;
 		try {
-			const destSt = await fsp.stat(dest);
+			const destSt = await fsp.stat(finalDest);
 			if (destSt.isFile()) existingSize = destSt.size;
 		} catch (e) { /* 目标文件不存在 */ }
 		// 转码目标文件：目标文件已存在时使用 .processing 临时后缀（加在扩展名之前，保留原扩展名以便 ffmpeg 识别容器格式），否则直接转码到目标
 		const tmpDest = existingSize != null
-			? dest.replace(/(\.[^./\\]+)$/, '.processing$1')
-			: dest;
+			? finalDest.replace(/(\.[^./\\]+)$/, '.processing$1')
+			: finalDest;
 
 		try {
 			// 确保目标目录存在
-			await fsp.mkdir(path.dirname(dest), { recursive: true });
+			await fsp.mkdir(path.dirname(finalDest), { recursive: true });
 			// 任务真正开始转码时加入进度区（只显示正在转码的任务）
 			handlers.onProgressAdd(task);
 			await jiaffmpeg.transcodeVideo(
@@ -429,7 +435,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 						task.reasons = [`源文件更小(${humanSize(srcSize)} -> ${humanSize(existingSize)})`];
 						handlers.onProgressRemove(task);
 						handlers.onLog(formatTaskLine(task));
-						await copyFile(filePath, dest);
+						await copyFile(filePath, finalDest);
 						await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 						task.status = 'done';
 						handlers.onLog(formatTaskLine(task));
@@ -450,8 +456,8 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 					const reason = `存在更小的目标文件(${humanSize(smallerSize)} -> ${humanSize(existingSize)})`;
 					if (outSize <= srcSize) {
 						// 转码结果更小或相等，用转码结果替换
-						await fsp.rename(tmpDest, dest);
-						await setFileTimes(dest, filePath);
+						await fsp.rename(tmpDest, finalDest);
+						await setFileTimes(finalDest, filePath);
 						await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 						task.status = 'done';
 						task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
@@ -466,7 +472,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 					task.reasons = [reason];
 					handlers.onProgressRemove(task);
 					handlers.onLog(formatTaskLine(task));
-					await copyFile(filePath, dest);
+					await copyFile(filePath, finalDest);
 					await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 					task.status = 'done';
 					handlers.onLog(formatTaskLine(task));
@@ -474,8 +480,8 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				}
 
 				// 转码结果比目标小但源文件比目标大 → 用转码结果替换
-				await fsp.rename(tmpDest, dest);
-				await setFileTimes(dest, filePath);
+				await fsp.rename(tmpDest, finalDest);
+				await setFileTimes(finalDest, filePath);
 				await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 				task.status = 'done';
 				task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
@@ -493,7 +499,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				task.reasons = [`转码后更大(${humanSize(srcSize)} -> ${humanSize(outSize)})`];
 				handlers.onProgressRemove(task);
 				handlers.onLog(formatTaskLine(task));
-				await copyFile(filePath, dest);
+				await copyFile(filePath, finalDest);
 				await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 				task.status = 'done';
 				handlers.onLog(formatTaskLine(task));
@@ -502,8 +508,8 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			// copyIfBigger 为 false 时，即使转码后更大也保留转码结果（继续走下方重命名逻辑）
 
 			// 转码成功且更小，重命名为目标文件并设置时间戳
-			await fsp.rename(tmpDest, dest);
-			await setFileTimes(dest, filePath);
+			await fsp.rename(tmpDest, finalDest);
+			await setFileTimes(finalDest, filePath);
 			await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 			task.status = 'done';
 			task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
