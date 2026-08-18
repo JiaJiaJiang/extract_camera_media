@@ -131,8 +131,13 @@ class TaskQueue {
 		this.done = 0;
 		this.total = 0;
 		this.error = null; // 记录第一个错误，用于停止
-		this.activeDests = new Set(); // 正在处理任务的 dest 路径
-		this.destWaiters = new Map(); // destPath -> 等待该 dest 释放的任务数组
+		this.activeDests = new Set(); // 正在处理任务的 dest 路径（统一小写，Windows 文件系统不区分大小写）
+		this.destWaiters = new Map(); // destPath(小写) -> 等待该 dest 释放的任务数组
+	}
+
+	// 统一 dest 路径大小写，避免同名不同大小写（如 video.mp4 / video.MP4）被当成不同路径
+	_normDest(p) {
+		return p ? p.toLowerCase() : p;
 	}
 
 	push(task) {
@@ -146,7 +151,7 @@ class TaskQueue {
 	_next() {
 		while (this.running < this.concurrency && this.queue.length > 0) {
 			const entry = this.queue.shift();
-			const destPath = entry.task.destPath;
+			const destPath = this._normDest(entry.task.destPath);
 			// dest 路径冲突：该 dest 正在被其它任务处理，进入等待状态
 			if (destPath && this.activeDests.has(destPath)) {
 				if (!this.destWaiters.has(destPath)) {
@@ -161,7 +166,7 @@ class TaskQueue {
 
 	_run(entry) {
 		const { task, resolve, reject } = entry;
-		const destPath = task.destPath;
+		const destPath = this._normDest(task.destPath);
 		if (destPath) this.activeDests.add(destPath);
 		this.running++;
 		task()
