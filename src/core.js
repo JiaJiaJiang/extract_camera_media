@@ -131,6 +131,8 @@ class TaskQueue {
 		this.done = 0;
 		this.total = 0;
 		this.error = null; // 记录第一个错误，用于停止
+		this.activeDests = new Set(); // 正在处理任务的 dest 路径
+		this.destWaiters = new Map(); // destPath -> 等待该 dest 释放的任务数组
 	}
 
 	push(task) {
@@ -143,21 +145,46 @@ class TaskQueue {
 
 	_next() {
 		while (this.running < this.concurrency && this.queue.length > 0) {
-			const { task, resolve, reject } = this.queue.shift();
-			this.running++;
-			task()
-				.then(resolve)
-				.catch((err) => {
-					// 记录第一个错误，用于停止
-					if (!this.error) this.error = err;
-					reject(err);
-				})
-				.finally(() => {
-					this.running--;
-					this.done++;
-					this._next();
-				});
+			const entry = this.queue.shift();
+			const destPath = entry.task.destPath;
+			// dest 路径冲突：该 dest 正在被其它任务处理，进入等待状态
+			if (destPath && this.activeDests.has(destPath)) {
+				if (!this.destWaiters.has(destPath)) {
+					this.destWaiters.set(destPath, []);
+				}
+				this.destWaiters.get(destPath).push(entry);
+				continue;
+			}
+			this._run(entry);
 		}
+	}
+
+	_run(entry) {
+		const { task, resolve, reject } = entry;
+		const destPath = task.destPath;
+		if (destPath) this.activeDests.add(destPath);
+		this.running++;
+		task()
+			.then(resolve)
+			.catch((err) => {
+				// 记录第一个错误，用于停止
+				if (!this.error) this.error = err;
+				reject(err);
+			})
+			.finally(() => {
+				this.running--;
+				this.done++;
+				if (destPath) {
+					this.activeDests.delete(destPath);
+					// 唤醒等待该 dest 的任务，重新加入队列
+					const waiters = this.destWaiters.get(destPath) || [];
+					this.destWaiters.delete(destPath);
+					for (const w of waiters) {
+						this.queue.unshift(w);
+					}
+				}
+				this._next();
+			});
 	}
 
 	async wait() {
@@ -357,6 +384,15 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 	task.duration = parseFloat(videoStream.duration) || 0;
 	task.totalFrames = parseInt(videoStream.nb_frames, 10) || 0;
 
+	// 容器格式：未指定时使用源文件的扩展名
+	const container = tv.container || path.extname(filePath).replace('.', '') || 'mp4';
+	// 最终目标文件路径：转码输出使用容器扩展名（与源扩展名不同时替换，如源 .AVI + 容器 mp4 → 目标 .mp4）
+	const srcExt = path.extname(dest);
+	const finalDest = (srcExt && srcExt.slice(1).toLowerCase() !== container.toLowerCase())
+		? dest.slice(0, -srcExt.length) + '.' + container
+		: dest;
+	task.destPath = finalDest;
+
 	// 加入任务队列但不等待，让 walkDir 能继续遍历其它文件，由队列并发执行转码
 	taskQueue.push(async () => {
 		// 选择编码器
@@ -374,14 +410,6 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		}
 		task.videoEncoder = videoEncoder;
 		const useHardware = tv.hardwareEncoder !== false && !videoEncoder.startsWith('libx');
-		// 容器格式：未指定时使用源文件的扩展名
-		const container = tv.container || path.extname(filePath).replace('.', '') || 'mp4';
-		// 最终目标文件路径：转码输出使用容器扩展名（与源扩展名不同时替换，如源 .AVI + 容器 mp4 → 目标 .mp4）
-		const srcExt = path.extname(dest);
-		const finalDest = (srcExt && srcExt.slice(1).toLowerCase() !== container.toLowerCase())
-			? dest.slice(0, -srcExt.length) + '.' + container
-			: dest;
-		task.destPath = finalDest;
 		// 检测目标文件是否已存在，存在则记录其大小（用于转码后比较决定是否替换）
 		let existingSize = null;
 		try {
