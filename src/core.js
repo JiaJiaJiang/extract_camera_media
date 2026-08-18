@@ -375,7 +375,14 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		const useHardware = tv.hardwareEncoder !== false && !videoEncoder.startsWith('libx');
 		// 容器格式：未指定时使用源文件的扩展名
 		const container = tv.container || path.extname(filePath).replace('.', '') || 'mp4';
-		const tmpDest = dest + '.tmp.' + container;
+		// 检测目标文件是否已存在，存在则记录其大小（用于转码后比较决定是否替换）
+		let existingSize = null;
+		try {
+			const destSt = await fsp.stat(dest);
+			if (destSt.isFile()) existingSize = destSt.size;
+		} catch (e) { /* 目标文件不存在 */ }
+		// 转码目标文件：目标文件已存在时使用 .processing 临时后缀，否则直接转码到目标
+		const tmpDest = existingSize != null ? dest + '.processing' : dest;
 
 		try {
 			// 确保目标目录存在
@@ -406,6 +413,74 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			// 检查转码后文件是否比源文件小
 			const srcSize = (await fsp.stat(filePath)).size;
 			const outSize = (await fsp.stat(tmpDest)).size;
+
+			// 目标文件已存在时的处理
+			if (existingSize != null) {
+				// 转码结果比已存在的目标文件大
+				if (outSize > existingSize) {
+					// 源文件比已存在的目标文件小 → 改为复制源文件覆盖目标文件
+					if (srcSize < existingSize) {
+						await fsp.unlink(tmpDest).catch(() => { });
+						task.method = '复制';
+						task.reasons = [`源文件更小(${humanSize(srcSize)} -> ${humanSize(existingSize)})`];
+						handlers.onProgressRemove(task);
+						handlers.onLog(formatTaskLine(task));
+						await copyFile(filePath, dest);
+						await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+						task.status = 'done';
+						handlers.onLog(formatTaskLine(task));
+						return;
+					}
+					// 否则删除转码结果，忽略任务
+					await fsp.unlink(tmpDest).catch(() => { });
+					task.method = '忽略';
+					task.reasons = [`转码后更大(${humanSize(existingSize)} -> ${humanSize(outSize)})`];
+					handlers.onProgressRemove(task);
+					handlers.onLog(formatTaskLine(task));
+					return;
+				}
+
+				// 转码结果和源文件都比已存在的目标文件小 → 用更小的那个替换，理由更明确
+				if (srcSize <= existingSize) {
+					const smallerSize = Math.min(outSize, srcSize);
+					const reason = `存在更小的目标文件(${humanSize(smallerSize)} -> ${humanSize(existingSize)})`;
+					if (outSize <= srcSize) {
+						// 转码结果更小或相等，用转码结果替换
+						await fsp.rename(tmpDest, dest);
+						await setFileTimes(dest, filePath);
+						await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+						task.status = 'done';
+						task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
+						task.reasons = [reason];
+						handlers.onProgressRemove(task);
+						handlers.onLog(formatTaskLine(task));
+						return;
+					}
+					// 源文件更小，复制源文件替换
+					await fsp.unlink(tmpDest).catch(() => { });
+					task.method = '复制';
+					task.reasons = [reason];
+					handlers.onProgressRemove(task);
+					handlers.onLog(formatTaskLine(task));
+					await copyFile(filePath, dest);
+					await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+					task.status = 'done';
+					handlers.onLog(formatTaskLine(task));
+					return;
+				}
+
+				// 转码结果比目标小但源文件比目标大 → 用转码结果替换
+				await fsp.rename(tmpDest, dest);
+				await setFileTimes(dest, filePath);
+				await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+				task.status = 'done';
+				task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
+				handlers.onProgressRemove(task);
+				handlers.onLog(formatTaskLine(task));
+				return;
+			}
+
+			// 目标文件不存在：按 copyIfBigger 判断是否改为复制
 			if (outSize >= srcSize && processOptions.copyIfBigger !== false) {
 				// 转码后更大且 copyIfBigger 为 true（默认）：删除生成文件，改为复制源文件
 				await fsp.unlink(tmpDest).catch(() => { });
