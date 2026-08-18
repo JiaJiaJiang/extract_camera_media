@@ -509,8 +509,12 @@ async function walkDir(dir, relDir, taskQueue, handlers, scanOptions, processOpt
 		const name = entry.name;
 		// 忽略特殊文件和目录
 		if (isIgnored(name)) continue;
-		// 排除已处理目录
-		if (entry.isDirectory() && path.resolve(path.join(dir, name)) === path.resolve(scanOptions.processedDir)) continue;
+		// 排除已处理目录和错误源文件目录（避免再次处理其中的文件）
+		if (entry.isDirectory()) {
+			const full = path.resolve(path.join(dir, name));
+			if (scanOptions.processedDir && full === path.resolve(scanOptions.processedDir)) continue;
+			if (scanOptions.errorSourceDir && full === path.resolve(scanOptions.errorSourceDir)) continue;
+		}
 
 		const fullPath = path.join(dir, name);
 		const relPath = relDir ? path.join(relDir, name) : name;

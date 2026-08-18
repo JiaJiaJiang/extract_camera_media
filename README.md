@@ -36,6 +36,7 @@
 | `CAMERA_MEDIA_DIR` | ✅ | 无 | 相机媒体源目录 |
 | `TARGET_DIR` | ✅ | 无 | 目标目录 |
 | `PROCESSED_DIR` | 否 | `已处理` | 已处理文件移动到的目录（非绝对路径则相对源目录） |
+| `ERROR_SOURCE_DIR` | 否 | 无 | 错误源文件目录（存放扫描时检测到的坏视频，非绝对路径则相对源目录）；未设置时坏文件留在原地跳过处理 |
 | `TARGET_VIDEO_CODEC` | 否 | `h265` | 目标视频编码：`h265` 或 `h264` |
 | `VIDEO_TRANSCODE_CONCURRENCY` | 否 | `1` | 视频并发转码任务数 |
 | `FFMPEG_PATH` | 否 | `ffmpeg` | ffmpeg 可执行文件路径（默认走 PATH） |

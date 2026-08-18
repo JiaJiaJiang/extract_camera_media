@@ -21,6 +21,8 @@ const sourceDir = process.env.CAMERA_MEDIA_DIR
 const targetDir = process.env.TARGET_DIR
 // 已处理目录（非绝对路径则相对 sourceDir 获取）
 const processedDir = process.env.PROCESSED_DIR || '已处理'
+// 错误源文件目录（存放扫描时检测到的坏视频，非绝对路径则相对 sourceDir 获取）
+const errorSourceDir = process.env.ERROR_SOURCE_DIR 
 
 // 处理过滤器：只处理匹配的文件/目录（逗号分隔的 glob 模式列表）
 // 支持 * 匹配单个路径段内的任意字符，** 匹配多级未知目录
@@ -65,7 +67,8 @@ const scanOptions = {
 	// onEnterDir(fullPath, relativePath) // 进入目录时扫描文件目录前调用的回调函数，以便对文件进行预处理
 	sourceDir,
 	targetDir,
-	processedDir // 已处理文件被移动到此目录，传入的非绝对路径的话则相对 sourceDir 获取
+	processedDir, // 已处理文件被移动到此目录，传入的非绝对路径的话则相对 sourceDir 获取
+	errorSourceDir // 错误源文件目录（存放扫描时检测到的坏视频），未设置时坏文件留在原地跳过处理
 }
 
 // 转码具体参数
