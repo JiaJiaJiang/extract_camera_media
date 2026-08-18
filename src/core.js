@@ -403,7 +403,8 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				// 转码后更大且 copyIfBigger 为 true（默认）：删除生成文件，改为复制源文件
 				await fsp.unlink(tmpDest).catch(() => { });
 				task.method = '复制';
-				task.reasons = ['转码后更大'];
+				// 把原大小和转码后大小追加在理由后面
+				task.reasons = [`转码后更大(${humanSize(srcSize)} -> ${humanSize(outSize)})`];
 				handlers.onProgressRemove(task);
 				handlers.onLog(formatTaskLine(task));
 				await copyFile(filePath, dest);
@@ -419,6 +420,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			await setFileTimes(dest, filePath);
 			await moveToProcessed(filePath, relPath, scanOptions.processedDir);
 			task.status = 'done';
+			task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
 			handlers.onProgressRemove(task);
 			handlers.onLog(formatTaskLine(task));
 		} catch (e) {
@@ -450,7 +452,12 @@ export function formatTaskLine(task) {
 		line += `:${task.reasons.join(',')}`;
 	}
 	line += ` ${task.relPath}`;
-	if (size) line += ` (${size})`;
+	// 转码完成时显示"原大小 -> 转码后大小"，其它情况显示原大小
+	if (task.outSize !== undefined) {
+		line += ` (${size} -> ${humanSize(task.outSize)})`;
+	} else if (size) {
+		line += ` (${size})`;
+	}
 	if (task.status === 'done') {
 		line += ' ✓';
 	}
