@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@wolf-tui/vue": "^1.11.0",
-    "jiaffmpeg": "^1.0.7"
+    "jiaffmpeg": "^1.0.8"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",

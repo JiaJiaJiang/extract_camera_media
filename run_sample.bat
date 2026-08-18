@@ -36,6 +36,9 @@ rem set FFPROBE_PATH=C:\ffmpeg\bin\ffprobe.exe
 rem 强行转码所有视频（测试用）：1 或 true 开启
 rem set FORCE_TRANSCODE=1
 
+rem 转码后文件比源文件大时是否改为复制源文件（默认开启）：0 或 false 关闭
+rem set COPY_IF_BIGGER=0
+
 rem 处理过滤器：只处理匹配的文件/目录，多个用逗号分隔（glob 模式）
 rem   *  匹配单个路径段内的任意字符（不含 /）
 rem   ** 匹配多级未知目录（含 /）

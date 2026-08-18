@@ -47,6 +47,9 @@ if (isNaN(concurrency) || concurrency < 1) {
 // 强行转码所有视频（测试用），可通过环境变量 FORCE_TRANSCODE 设置
 const forceTranscode = process.env.FORCE_TRANSCODE === '1' || process.env.FORCE_TRANSCODE === 'true'
 
+// 转码后文件比源文件大时是否改为复制源文件（默认 true），可通过环境变量 COPY_IF_BIGGER 设置
+const copyIfBigger = process.env.COPY_IF_BIGGER !== '0' && process.env.COPY_IF_BIGGER !== 'false'
+
 // 必要配置检查
 if (!sourceDir) {
 	console.error('[配置错误] 缺少必要环境变量: CAMERA_MEDIA_DIR')
@@ -75,6 +78,7 @@ const scanOptions = {
 const processOptions = {
 	concurrency, // 视频并发转码任务数
 	forceTranscode, // 强行转码所有视频（测试用）
+	copyIfBigger, // 转码后文件比源文件大时是否改为复制源文件
 	transcodeVideo: {
 		densityThreshold: 0.053, // 要转码的视频密度阈值
 		targetCodec, // 可选 h265 或 h264，根据 targetCodec 自动选择目标编码器

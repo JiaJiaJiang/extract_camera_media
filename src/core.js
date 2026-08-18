@@ -281,7 +281,12 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 	try {
 		info = await jiaffmpeg.probeMedia(filePath);
 	} catch (e) {
-		// 无法被 ffprobe 解析：跳过处理，不转码也不复制
+		// 区分错误类型：
+		// ENOENT 表示找不到 ffprobe 二进制文件（环境问题），应报错终止，不能把正常文件误判为坏文件
+		if (e && e.code === 'ENOENT') {
+			throw new Error(`无法运行 ffprobe（找不到 ffprobe 二进制文件），请检查 FFPROBE_PATH 配置: ${e.message}`);
+		}
+		// 其它错误表示媒体文件本身无法被 ffprobe 解析：跳过处理，不转码也不复制
 		task.method = '忽略';
 		task.reasons.push('无法解析');
 		handlers.onLog(formatTaskLine(task));
@@ -421,6 +426,12 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			handlers.onProgressRemove(task);
 			// 删除临时文件
 			await fsp.unlink(tmpDest).catch(() => { });
+			// ENOENT 表示找不到 ffprobe 二进制（环境问题），给出明确提示
+			if (e && e.code === 'ENOENT') {
+				const err = new Error(`[${task.num}] 无法运行 ffprobe（找不到 ffprobe 二进制文件），请检查 FFPROBE_PATH 配置: ${e.message}`);
+				err.task = task;
+				throw err;
+			}
 			const err = new Error(`[${task.num}] 转码出错: ${e.message}`);
 			err.task = task;
 			throw err;

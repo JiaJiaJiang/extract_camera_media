@@ -43,6 +43,7 @@
 | `FFPROBE_PATH` | 否 | `ffprobe` | ffprobe 可执行文件路径（默认走 PATH） |
 | `PROCESS_FILTER` | 否 | 空 | 只处理匹配的文件/目录，多个用逗号分隔（glob 模式，见下方说明） |
 | `FORCE_TRANSCODE` | 否 | 关 | 设为 `1` 或 `true` 时强制转码所有视频（测试用） |
+| `COPY_IF_BIGGER` | 否 | 开 | 转码后文件比源文件大时是否改为复制源文件；设为 `0` 或 `false` 关闭 |
 
 > 注意：`CAMERA_MEDIA_DIR` 和 `TARGET_DIR` 为必填项，未设置时程序会报错并退出。
 
