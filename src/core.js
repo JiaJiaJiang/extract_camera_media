@@ -382,8 +382,10 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			const destSt = await fsp.stat(dest);
 			if (destSt.isFile()) existingSize = destSt.size;
 		} catch (e) { /* 目标文件不存在 */ }
-		// 转码目标文件：目标文件已存在时使用 .processing 临时后缀，否则直接转码到目标
-		const tmpDest = existingSize != null ? dest + '.processing' : dest;
+		// 转码目标文件：目标文件已存在时使用 .processing 临时后缀（加在扩展名之前，保留原扩展名以便 ffmpeg 识别容器格式），否则直接转码到目标
+		const tmpDest = existingSize != null
+			? dest.replace(/(\.[^./\\]+)$/, '.processing$1')
+			: dest;
 
 		try {
 			// 确保目标目录存在
@@ -518,7 +520,17 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 				err.task = task;
 				throw err;
 			}
-			const err = new Error(`[${task.num}] 转码出错: ${e.message}`);
+			// 提取错误信息：优先用 e.message，为空时从 ffmpeg 日志（e.log）或命令（e.cmd）中提取
+			let msg = (e && e.message) || '';
+			if (!msg && e && e.log) {
+				// 取 ffmpeg 日志中最后几行非空内容
+				const lines = String(e.log).split('\n').map((l) => l.trim()).filter(Boolean);
+				msg = lines.slice(-3).join(' | ');
+			}
+			if (!msg && e && e.cmd) {
+				msg = `命令: ${e.cmd}`;
+			}
+			const err = new Error(`[${task.num}] 转码出错: ${msg || '未知错误'}`);
 			err.task = task;
 			throw err;
 		}
