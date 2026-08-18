@@ -116,6 +116,6 @@ function finishAndExit() {
 		<Newline />
 		<Text v-if="status === '完成'" :style="{ color: 'green' }">=== 处理完成 ===</Text>
 		<Text v-else-if="status === '出错'" :style="{ color: 'red' }">=== 处理出错:
-			{{ error ? error.message + '\n' + error.stack : '' }} ===</Text>
+			{{ error ? error.stack : '' }} ===</Text>
 	</Box>
 </template>
