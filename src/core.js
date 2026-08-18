@@ -233,7 +233,7 @@ let taskCounter = 0;
 async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, processOptions, skipped = false) {
 	const ext = path.extname(filePath).toLowerCase();
 	taskCounter++;
-	const task = { num: taskCounter, relPath, method: '忽略', size: 0, reasons: [] };
+	const task = { num: taskCounter, relPath, srcPath: filePath, method: '忽略', size: 0, reasons: [] };
 
 	// 因规则跳过：不处理，留在原地，标记原因"规则跳过"
 	if (skipped) {
@@ -259,6 +259,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 	}
 
 	const dest = path.join(scanOptions.targetDir, relPath);
+	task.destPath = dest;
 
 	// 照片：原样拷贝
 	if (PHOTO_EXTENSIONS.has(ext)) {
@@ -391,7 +392,8 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			handlers.onProgressAdd(task);
 			await jiaffmpeg.transcodeVideo(
 				filePath, tmpDest, videoStream, audioStream, videoEncoder, tv, ta, useHardware,
-				(data) => handlers.onProgress(task, data)
+				(data) => handlers.onProgress(task, data),
+				({ command }) => { task.ffmpegCommand = command; }
 			);
 
 			// 校验转码目标：能被 ffprobe 正确解析且至少有一个音频或视频轨道
