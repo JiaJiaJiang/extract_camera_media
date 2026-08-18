@@ -72,25 +72,32 @@ async function moveToErrorDir(src, relPath, errorDir) {
 
 // 递归删除空目录（不删除根目录）
 async function removeEmptyDirs(dir, root) {
-	let entries;
+	let names;
 	try {
-		entries = await fsp.readdir(dir, { withFileTypes: true });
+		names = await fsp.readdir(dir);
 	} catch (e) {
 		return;
 	}
-	for (const entry of entries) {
-		if (entry.isDirectory()) {
-			const full = path.join(dir, entry.name);
+	for (const name of names) {
+		const full = path.join(dir, name);
+		// 单独获取类型，避免 withFileTypes 因无权限条目导致 readdir 报错
+		let st;
+		try {
+			st = await fsp.stat(full);
+		} catch (e) {
+			continue; // 无权限等，跳过
+		}
+		if (st.isDirectory()) {
 			await removeEmptyDirs(full, root);
 		}
 	}
 	// 重新读取，因为子目录可能已被删除
 	try {
-		entries = await fsp.readdir(dir);
+		names = await fsp.readdir(dir);
 	} catch (e) {
 		return;
 	}
-	if (entries.length === 0 && path.resolve(dir) !== path.resolve(root)) {
+	if (names.length === 0 && path.resolve(dir) !== path.resolve(root)) {
 		try {
 			await fsp.rmdir(dir);
 		} catch (e) {
@@ -511,9 +518,9 @@ export function buildProgressLine(task, data) {
 
 // 递归遍历目录
 async function walkDir(dir, relDir, taskQueue, handlers, scanOptions, processOptions) {
-	let entries;
+	let names;
 	try {
-		entries = await fsp.readdir(dir, { withFileTypes: true });
+		names = await fsp.readdir(dir);
 	} catch (e) {
 		return;
 	}
@@ -523,24 +530,29 @@ async function walkDir(dir, relDir, taskQueue, handlers, scanOptions, processOpt
 		await scanOptions.onEnterDir(dir, relDir);
 	}
 
-	for (const entry of entries) {
-		const name = entry.name;
+	for (const name of names) {
 		// 忽略特殊文件和目录
 		if (isIgnored(name)) continue;
-		// 排除已处理目录和错误源文件目录（避免再次处理其中的文件）
-		if (entry.isDirectory()) {
-			const full = path.resolve(path.join(dir, name));
-			if (scanOptions.processedDir && full === path.resolve(scanOptions.processedDir)) continue;
-			if (scanOptions.errorSourceDir && full === path.resolve(scanOptions.errorSourceDir)) continue;
-		}
 
 		const fullPath = path.join(dir, name);
 		const relPath = relDir ? path.join(relDir, name) : name;
 
-		if (entry.isDirectory()) {
+		// 单独获取是文件还是目录（避免 withFileTypes 因无权限条目导致 readdir 报错）
+		let st;
+		try {
+			st = await fsp.stat(fullPath);
+		} catch (e) {
+			continue; // 无权限等，跳过
+		}
+
+		if (st.isDirectory()) {
+			// 排除已处理目录和错误源文件目录（避免再次处理其中的文件）
+			const full = path.resolve(fullPath);
+			if (scanOptions.processedDir && full === path.resolve(scanOptions.processedDir)) continue;
+			if (scanOptions.errorSourceDir && full === path.resolve(scanOptions.errorSourceDir)) continue;
 			// 默认进入所有目录，在处理文件时再按过滤器过滤
 			await walkDir(fullPath, relPath, taskQueue, handlers, scanOptions, processOptions);
-		} else if (entry.isFile()) {
+		} else if (st.isFile()) {
 			// 处理过滤器：设置了过滤器时，仅处理匹配的文件，不匹配的标记为"规则跳过"
 			if (!matchesFilter(relPath, scanOptions.filter)) {
 				await processFile(fullPath, relPath, taskQueue, handlers, scanOptions, processOptions, true);
