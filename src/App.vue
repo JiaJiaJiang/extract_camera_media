@@ -97,7 +97,8 @@ function finishAndExit() {
 		<Text>目标目录: {{ config.targetDir }}</Text>
 		<Text>目标视频编码: {{ config.targetVideoCodec }}</Text>
 		<Text>视频并发转码数: {{ config.videoTranscodeConcurrency }}</Text>
-		<Text>处理过滤: {{ config.processFilter && config.processFilter.length > 0 ? config.processFilter.join(', ') : '全部' }}</Text>
+		<Text>处理过滤:
+			{{ config.processFilter && config.processFilter.length > 0 ? config.processFilter.join(', ') : '全部' }}</Text>
 		<Newline />
 
 		<!-- 静态结果 log 区（已完成的任务，向上滚动） -->
@@ -105,13 +106,16 @@ function finishAndExit() {
 
 		<!-- 动态进度区（正在转码的任务，固定在底部） -->
 		<Box v-for="p in progresses" :key="p.num" :style="{ flexDirection: 'column' }">
-			<Text>[{{ p.num }}] 转码 {{ p.relPath }} {{ p.encoder }} 进度:{{ p.pct.toFixed(0) }}% 剩余:{{ p.timeLeft }} time:{{ p.time }} frame:{{ p.frame }} bitrate:{{ p.bitrate }} fps:{{ p.fps }} speed:{{ p.speed }}</Text>
+			<Text>[{{ p.num }}] 转码 {{ p.relPath }} {{ p.encoder }} 进度:{{ p.pct.toFixed(0) }}%
+				剩余:{{ p.timeLeft }} time:{{ p.time }} frame:{{ p.frame }} bitrate:{{ p.bitrate }}
+				fps:{{ p.fps }} speed:{{ p.speed }}</Text>
 			<ProgressBar :value="p.pct" :style="{ width: 40 }" />
 		</Box>
 
 		<!-- 状态 -->
 		<Newline />
 		<Text v-if="status === '完成'" :style="{ color: 'green' }">=== 处理完成 ===</Text>
-		<Text v-else-if="status === '出错'" :style="{ color: 'red' }">=== 处理出错: {{ error ? error.message : '' }} ===</Text>
+		<Text v-else-if="status === '出错'" :style="{ color: 'red' }">=== 处理出错:
+			{{ error ? error.message + '\n' + error.stack : '' }} ===</Text>
 	</Box>
 </template>
