@@ -397,6 +397,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		? dest.slice(0, -srcExt.length) + '.' + container
 		: dest;
 	task.destPath = finalDest;
+	console.log(`[DEBUG] push task ${task.num} destPath=${task.destPath} relPath=${relPath}`);
 
 	// 加入任务队列但不等待，让 walkDir 能继续遍历其它文件，由队列并发执行转码
 	taskQueue.push(async () => {
