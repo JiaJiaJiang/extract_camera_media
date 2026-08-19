@@ -15,13 +15,6 @@ import jiaffmpeg from 'jiaffmpeg';
 
 const fsp = fs.promises;
 
-// 调试日志：写入 debug.log 文件，避免被 vue 渲染覆盖
-function debugLog(...args) {
-	try {
-		fs.appendFileSync(path.join(process.cwd(), 'debug.log'), args.join(' ') + '\n');
-	} catch (e) { /* 忽略写入错误 */ }
-}
-
 // ==================== 工具函数 ====================
 
 // 人类可读文件大小
@@ -161,14 +154,12 @@ class TaskQueue {
 			const destPath = this._normDest(entry.task && entry.task.destPath);
 			// dest 路径冲突：该 dest 正在被其它任务处理，进入等待状态
 			if (destPath && this.activeDests.has(destPath)) {
-				debugLog(`[DEBUG] dest冲突 task=${entry.task && entry.task.num} dest=${destPath} 等待`);
 				if (!this.destWaiters.has(destPath)) {
 					this.destWaiters.set(destPath, []);
 				}
 				this.destWaiters.get(destPath).push(entry);
 				continue;
 			}
-			debugLog(`[DEBUG] dest无冲突 task=${entry.task && entry.task.num} dest=${destPath} activeDests=[${[...this.activeDests].join(',')}]`);
 			this._run(entry);
 		}
 	}
@@ -406,7 +397,6 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 		? dest.slice(0, -srcExt.length) + '.' + container
 		: dest;
 	task.destPath = finalDest;
-	debugLog(`[DEBUG] push task ${task.num} destPath=${task.destPath} relPath=${relPath}`);
 
 	// 加入任务队列但不等待，让 walkDir 能继续遍历其它文件，由队列并发执行转码
 	taskQueue.push(task, async () => {
