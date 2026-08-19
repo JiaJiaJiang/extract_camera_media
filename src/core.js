@@ -461,6 +461,21 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 			if (existingSize != null) {
 				// 转码结果比已存在的目标文件大
 				if (outSize > existingSize) {
+					// 先检查已存在的目标文件是否有效（至少有一个音频或视频轨道）。
+					// 若目标文件损坏（如之前任务意外终止残留），则不能忽略转码结果，而应改用转码结果替换。
+					const existingValid = await jiaffmpeg.verifyTranscodedFile(finalDest);
+					if (!existingValid) {
+						// 已存在的目标文件无效（损坏）：用转码结果替换它
+						await fsp.rename(tmpDest, finalDest);
+						await setFileTimes(finalDest, filePath);
+						await moveToProcessed(filePath, relPath, scanOptions.processedDir);
+						task.status = 'done';
+						task.outSize = outSize; // 记录转码后大小，用于日志显示"原大小 -> 转码后大小"
+						task.reasons = [`存在目标无效，用转码结果替换(存在目标:${humanSize(existingSize)} -> 转码:${humanSize(outSize)})`];
+						handlers.onProgressRemove(task);
+						handlers.onLog(formatTaskLine(task));
+						return;
+					}
 					// 源文件比已存在的目标文件小 → 改为复制源文件覆盖目标文件
 					if (srcSize < existingSize) {
 						await fsp.unlink(tmpDest).catch(() => { });
