@@ -147,10 +147,10 @@ class TaskQueue {
 		return p ? p.toLowerCase() : p;
 	}
 
-	push(task) {
+	push(task, fn) {
 		this.total++;
 		return new Promise((resolve, reject) => {
-			this.queue.push({ task, resolve, reject });
+			this.queue.push({ task, fn, resolve, reject });
 			this._next();
 		});
 	}
@@ -158,27 +158,27 @@ class TaskQueue {
 	_next() {
 		while (this.running < this.concurrency && this.queue.length > 0) {
 			const entry = this.queue.shift();
-			const destPath = this._normDest(entry.task.destPath);
+			const destPath = this._normDest(entry.task && entry.task.destPath);
 			// dest 路径冲突：该 dest 正在被其它任务处理，进入等待状态
 			if (destPath && this.activeDests.has(destPath)) {
-				debugLog(`[DEBUG] dest冲突 task=${entry.task.num} dest=${destPath} 等待`);
+				debugLog(`[DEBUG] dest冲突 task=${entry.task && entry.task.num} dest=${destPath} 等待`);
 				if (!this.destWaiters.has(destPath)) {
 					this.destWaiters.set(destPath, []);
 				}
 				this.destWaiters.get(destPath).push(entry);
 				continue;
 			}
-			debugLog(`[DEBUG] dest无冲突 task=${entry.task.num} dest=${destPath} activeDests=[${[...this.activeDests].join(',')}]`);
+			debugLog(`[DEBUG] dest无冲突 task=${entry.task && entry.task.num} dest=${destPath} activeDests=[${[...this.activeDests].join(',')}]`);
 			this._run(entry);
 		}
 	}
 
 	_run(entry) {
-		const { task, resolve, reject } = entry;
-		const destPath = this._normDest(task.destPath);
+		const { task, fn, resolve, reject } = entry;
+		const destPath = this._normDest(task && task.destPath);
 		if (destPath) this.activeDests.add(destPath);
 		this.running++;
-		task()
+		fn()
 			.then(resolve)
 			.catch((err) => {
 				// 记录第一个错误，用于停止
@@ -409,7 +409,7 @@ async function processFile(filePath, relPath, taskQueue, handlers, scanOptions, 
 	debugLog(`[DEBUG] push task ${task.num} destPath=${task.destPath} relPath=${relPath}`);
 
 	// 加入任务队列但不等待，让 walkDir 能继续遍历其它文件，由队列并发执行转码
-	taskQueue.push(async () => {
+	taskQueue.push(task, async () => {
 		// 选择编码器
 		const videoEncoder = await jiaffmpeg.selectVideoEncoder(targetCodec);
 		if (!videoEncoder) {
