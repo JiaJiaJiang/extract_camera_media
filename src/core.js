@@ -664,16 +664,16 @@ export function buildProgressLine(task, data) {
 
 // 递归遍历目录
 async function walkDir(dir, relDir, taskQueue, handlers, scanOptions, processOptions) {
+	// 进入目录时回调（读取文件列表前调用，用于对文件进行预处理，如重命名）
+	if (typeof scanOptions.onEnterDir === 'function') {
+		await scanOptions.onEnterDir(dir, relDir);
+	}
+
 	let names;
 	try {
 		names = await fsp.readdir(dir);
 	} catch (e) {
 		return;
-	}
-
-	// 进入目录时回调（扫描文件目录前调用，用于对文件进行预处理）
-	if (typeof scanOptions.onEnterDir === 'function') {
-		await scanOptions.onEnterDir(dir, relDir);
 	}
 
 	for (const name of names) {
